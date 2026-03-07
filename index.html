@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Who's That Pokémon?</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      background: #1a1a2e;
+      color: #fff;
+      font-family: 'Press Start 2P', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-x: hidden;
+    }
+
+    .header {
+      text-align: center;
+      padding: 30px 20px 10px;
+    }
+
+    .header h1 {
+      font-size: 1.4rem;
+      color: #ffcb05;
+      text-shadow: 3px 3px 0 #3466af, -1px -1px 0 #3466af;
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      font-size: 0.55rem;
+      color: #aaa;
+      line-height: 1.6;
+    }
+
+    .stats {
+      display: flex;
+      gap: 30px;
+      justify-content: center;
+      margin: 15px 0;
+      font-size: 0.65rem;
+    }
+
+    .stat {
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 1.2rem;
+      color: #ffcb05;
+      display: block;
+      margin-top: 4px;
+    }
+
+    .game-area {
+      position: relative;
+      margin: 10px auto;
+    }
+
+    .canvas-wrapper {
+      position: relative;
+      width: 280px;
+      height: 280px;
+      margin: 0 auto;
+      border: 4px solid #3466af;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #0f0f23;
+      box-shadow: 0 0 30px rgba(52, 102, 175, 0.3), inset 0 0 30px rgba(0,0,0,0.5);
+    }
+
+    canvas {
+      display: block;
+      width: 280px;
+      height: 280px;
+      image-rendering: pixelated;
+    }
+
+    .reveal-bar {
+      width: 280px;
+      margin: 12px auto 0;
+      text-align: center;
+    }
+
+    .reveal-bar label {
+      font-size: 0.5rem;
+      color: #aaa;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .bar-track {
+      width: 100%;
+      height: 14px;
+      background: #0f0f23;
+      border-radius: 7px;
+      border: 2px solid #3466af;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #ff4444, #ffcb05, #4ecb71);
+      border-radius: 5px;
+      transition: width 0.3s;
+    }
+
+    .reveal-pct {
+      font-size: 0.55rem;
+      color: #ffcb05;
+      margin-top: 4px;
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      margin: 18px 0 10px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    #guess-input {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 0.7rem;
+      padding: 10px 14px;
+      border: 3px solid #3466af;
+      border-radius: 8px;
+      background: #0f0f23;
+      color: #fff;
+      outline: none;
+      width: 200px;
+      text-transform: lowercase;
+    }
+
+    #guess-input:focus {
+      border-color: #ffcb05;
+      box-shadow: 0 0 10px rgba(255, 203, 5, 0.3);
+    }
+
+    #guess-input::placeholder {
+      color: #555;
+      font-size: 0.5rem;
+    }
+
+    .btn {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 0.55rem;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn:hover { transform: translateY(-2px); }
+    .btn:active { transform: translateY(0); }
+
+    .btn-guess {
+      background: #ffcb05;
+      color: #1a1a2e;
+    }
+
+    .btn-hint {
+      background: #3466af;
+      color: #fff;
+      font-size: 0.5rem;
+      padding: 8px 14px;
+    }
+
+    .btn-skip {
+      background: transparent;
+      border: 2px solid #666;
+      color: #888;
+      font-size: 0.45rem;
+      padding: 8px 14px;
+    }
+
+    .btn-next {
+      background: #4ecb71;
+      color: #1a1a2e;
+      font-size: 0.6rem;
+      padding: 12px 24px;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(78, 203, 113, 0.5); }
+      50% { box-shadow: 0 0 0 10px rgba(78, 203, 113, 0); }
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .message {
+      font-size: 0.6rem;
+      min-height: 20px;
+      margin: 6px 0;
+      text-align: center;
+      transition: all 0.3s;
+    }
+
+    .message.correct {
+      color: #4ecb71;
+      animation: bounceIn 0.5s;
+    }
+
+    .message.wrong {
+      color: #ff4444;
+      animation: shake 0.4s;
+    }
+
+    .message.info {
+      color: #ffcb05;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+
+    @keyframes bounceIn {
+      0% { transform: scale(0.5); opacity: 0; }
+      60% { transform: scale(1.1); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .pokemon-reveal {
+      display: none;
+      text-align: center;
+      margin: 10px 0;
+    }
+
+    .pokemon-reveal.show {
+      display: block;
+      animation: bounceIn 0.5s;
+    }
+
+    .pokemon-reveal img {
+      width: 120px;
+      height: 120px;
+      image-rendering: pixelated;
+    }
+
+    .pokemon-reveal .name {
+      font-size: 0.8rem;
+      color: #ffcb05;
+      text-transform: capitalize;
+      margin-top: 6px;
+    }
+
+    .generation-select {
+      margin: 10px 0;
+      text-align: center;
+    }
+
+    .generation-select label {
+      font-size: 0.5rem;
+      color: #aaa;
+      margin-right: 8px;
+    }
+
+    .generation-select select {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 0.5rem;
+      padding: 6px 10px;
+      background: #0f0f23;
+      color: #fff;
+      border: 2px solid #3466af;
+      border-radius: 6px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .streak-banner {
+      display: none;
+      font-size: 0.5rem;
+      color: #ff6b35;
+      text-align: center;
+      animation: bounceIn 0.5s;
+    }
+
+    .streak-banner.show {
+      display: block;
+    }
+
+    .difficulty-info {
+      font-size: 0.4rem;
+      color: #666;
+      text-align: center;
+      margin-top: 4px;
+    }
+
+    .suggestions {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: #16213e;
+      border: 2px solid #3466af;
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      max-height: 120px;
+      overflow-y: auto;
+      z-index: 10;
+      display: none;
+    }
+
+    .suggestions.show {
+      display: block;
+    }
+
+    .suggestion-item {
+      padding: 8px 14px;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 0.5rem;
+      color: #ccc;
+      cursor: pointer;
+      text-transform: capitalize;
+    }
+
+    .suggestion-item:hover,
+    .suggestion-item.selected {
+      background: #3466af;
+      color: #fff;
+    }
+
+    .input-wrapper {
+      position: relative;
+    }
+
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 15, 35, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      z-index: 5;
+    }
+
+    .loading-overlay .pokeball {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 3px solid #333;
+      background: linear-gradient(180deg, #ff4444 50%, #fff 50%);
+      position: relative;
+      animation: spin 1s linear infinite;
+    }
+
+    .loading-overlay .pokeball::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 12px;
+      height: 12px;
+      background: #fff;
+      border: 3px solid #333;
+      border-radius: 50%;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 400px) {
+      .header h1 { font-size: 1rem; }
+      .canvas-wrapper, canvas, .reveal-bar { width: 240px; }
+      .canvas-wrapper { height: 240px; }
+      canvas { height: 240px; }
+      #guess-input { width: 160px; font-size: 0.6rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>Who's That Pokémon?</h1>
+    <p>Guess the Pokémon from the pixelated image!</p>
+  </div>
+
+  <div class="stats">
+    <div class="stat">Score<span class="stat-value" id="score">0</span></div>
+    <div class="stat">Streak<span class="stat-value" id="streak">0</span></div>
+    <div class="stat">Best<span class="stat-value" id="best">0</span></div>
+  </div>
+
+  <div class="streak-banner" id="streak-banner">🔥 x<span id="streak-count">0</span> STREAK!</div>
+
+  <div class="generation-select">
+    <label>Generation:</label>
+    <select id="gen-select">
+      <option value="all">All (1-5)</option>
+      <option value="1" selected>Gen 1 (1-151)</option>
+      <option value="2">Gen 2 (152-251)</option>
+      <option value="3">Gen 3 (252-386)</option>
+      <option value="4">Gen 4 (387-493)</option>
+      <option value="5">Gen 5 (494-649)</option>
+    </select>
+  </div>
+
+  <div class="game-area">
+    <div class="canvas-wrapper" id="canvas-wrapper">
+      <canvas id="game-canvas" width="96" height="96"></canvas>
+      <div class="loading-overlay" id="loading">
+        <div class="pokeball"></div>
+      </div>
+    </div>
+
+    <div class="reveal-bar">
+      <label>Pixels Revealed</label>
+      <div class="bar-track">
+        <div class="bar-fill" id="bar-fill" style="width: 5%"></div>
+      </div>
+      <div class="reveal-pct" id="reveal-pct">5%</div>
+    </div>
+  </div>
+
+  <div class="message" id="message">&nbsp;</div>
+
+  <div class="pokemon-reveal" id="pokemon-reveal">
+    <img id="reveal-img" src="" alt="">
+    <div class="name" id="reveal-name"></div>
+  </div>
+
+  <div class="controls" id="controls">
+    <div class="input-wrapper">
+      <div class="input-row">
+        <input type="text" id="guess-input" placeholder="type name..." autocomplete="off" spellcheck="false">
+        <button class="btn btn-guess" id="btn-guess">GO!</button>
+      </div>
+      <div class="suggestions" id="suggestions"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-hint" id="btn-hint">+ Reveal</button>
+      <button class="btn btn-skip" id="btn-skip">Skip</button>
+    </div>
+    <div class="difficulty-info" id="difficulty-info">Points: guessing early = more points!</div>
+  </div>
+
+  <div class="controls" id="next-controls" style="display:none;">
+    <button class="btn btn-next" id="btn-next">Next Pokémon →</button>
+  </div>
+
+  <script>
+    const GENS = {
+      1: [1, 151],
+      2: [152, 251],
+      3: [252, 386],
+      4: [387, 493],
+      5: [494, 649],
+    };
+
+    const canvas = document.getElementById('game-canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const guessInput = document.getElementById('guess-input');
+    const messageEl = document.getElementById('message');
+    const barFill = document.getElementById('bar-fill');
+    const revealPct = document.getElementById('reveal-pct');
+    const suggestionsEl = document.getElementById('suggestions');
+    const loadingEl = document.getElementById('loading');
+
+    let currentPokemon = null;
+    let originalPixels = null;
+    let revealedSet = new Set();
+    let revealLevel = 0;
+    let totalPixels = 0;
+    let score = 0;
+    let streak = 0;
+    let bestStreak = 0;
+    let gameOver = false;
+    let pokemonNames = [];
+    let selectedSuggestion = -1;
+    let attempts = 0;
+
+    // Load all pokemon names for autocomplete
+    async function loadPokemonNames() {
+      try {
+        const resp = await fetch('https://pokeapi.co/api/v2/pokemon?limit=649');
+        const data = await resp.json();
+        pokemonNames = data.results.map(p => p.name);
+      } catch (e) {
+        console.error('Failed to load Pokemon names:', e);
+      }
+    }
+
+    function getRandomPokemonId() {
+      const gen = document.getElementById('gen-select').value;
+      let min, max;
+      if (gen === 'all') {
+        min = 1; max = 649;
+      } else {
+        [min, max] = GENS[parseInt(gen)];
+      }
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    async function loadPokemon() {
+      gameOver = false;
+      attempts = 0;
+      revealLevel = 0;
+      revealedSet.clear();
+      loadingEl.style.display = 'flex';
+      messageEl.innerHTML = '&nbsp;';
+      messageEl.className = 'message';
+      document.getElementById('pokemon-reveal').className = 'pokemon-reveal';
+      document.getElementById('controls').style.display = 'flex';
+      document.getElementById('next-controls').style.display = 'none';
+      guessInput.value = '';
+      guessInput.disabled = false;
+      suggestionsEl.className = 'suggestions';
+      selectedSuggestion = -1;
+
+      const id = getRandomPokemonId();
+      try {
+        const resp = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`);
+        const data = await resp.json();
+        currentPokemon = {
+          id: data.id,
+          name: data.name,
+          sprite: data.sprites.front_default,
+        };
+
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = () => {
+          ctx.clearRect(0, 0, 96, 96);
+          ctx.drawImage(img, 0, 0, 96, 96);
+          originalPixels = ctx.getImageData(0, 0, 96, 96);
+          totalPixels = 0;
+
+          // Count non-transparent pixels
+          for (let i = 3; i < originalPixels.data.length; i += 4) {
+            if (originalPixels.data[i] > 10) totalPixels++;
+          }
+
+          revealPixels(0.05);
+          loadingEl.style.display = 'none';
+          guessInput.focus();
+        };
+        img.onerror = () => {
+          loadingEl.style.display = 'none';
+          messageEl.textContent = 'Failed to load sprite. Trying another...';
+          messageEl.className = 'message wrong';
+          setTimeout(loadPokemon, 1000);
+        };
+        img.src = currentPokemon.sprite;
+      } catch (e) {
+        loadingEl.style.display = 'none';
+        messageEl.textContent = 'Error loading Pokémon. Retrying...';
+        messageEl.className = 'message wrong';
+        setTimeout(loadPokemon, 1500);
+      }
+    }
+
+    function revealPixels(percent) {
+      if (!originalPixels) return;
+
+      const targetCount = Math.floor(totalPixels * percent);
+      const data = originalPixels.data;
+
+      // Build list of non-transparent pixel indices not yet revealed
+      const available = [];
+      for (let i = 0; i < 96 * 96; i++) {
+        if (data[i * 4 + 3] > 10 && !revealedSet.has(i)) {
+          available.push(i);
+        }
+      }
+
+      // Shuffle and pick needed amount
+      const needed = targetCount - revealedSet.size;
+      if (needed <= 0) return;
+
+      for (let i = available.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [available[i], available[j]] = [available[j], available[i]];
+      }
+
+      for (let k = 0; k < Math.min(needed, available.length); k++) {
+        revealedSet.add(available[k]);
+      }
+
+      renderCanvas();
+      revealLevel = percent;
+      const pct = Math.round(percent * 100);
+      barFill.style.width = pct + '%';
+      revealPct.textContent = pct + '%';
+      updateDifficultyInfo();
+    }
+
+    function renderCanvas() {
+      const displayData = ctx.createImageData(96, 96);
+      const orig = originalPixels.data;
+
+      for (let i = 0; i < 96 * 96; i++) {
+        const idx = i * 4;
+        if (revealedSet.has(i)) {
+          displayData.data[idx] = orig[idx];
+          displayData.data[idx + 1] = orig[idx + 1];
+          displayData.data[idx + 2] = orig[idx + 2];
+          displayData.data[idx + 3] = orig[idx + 3];
+        } else if (orig[idx + 3] > 10) {
+          // Show dark silhouette hint for non-revealed pokemon pixels
+          displayData.data[idx] = 20;
+          displayData.data[idx + 1] = 20;
+          displayData.data[idx + 2] = 40;
+          displayData.data[idx + 3] = 80;
+        }
+      }
+
+      ctx.putImageData(displayData, 0, 0);
+    }
+
+    function revealAll() {
+      if (!originalPixels) return;
+      for (let i = 0; i < 96 * 96; i++) {
+        if (originalPixels.data[i * 4 + 3] > 10) {
+          revealedSet.add(i);
+        }
+      }
+      renderCanvas();
+      barFill.style.width = '100%';
+      revealPct.textContent = '100%';
+    }
+
+    function calculatePoints() {
+      // More points for guessing with fewer pixels
+      if (revealLevel <= 0.05) return 100;
+      if (revealLevel <= 0.15) return 80;
+      if (revealLevel <= 0.30) return 60;
+      if (revealLevel <= 0.50) return 40;
+      if (revealLevel <= 0.75) return 20;
+      return 10;
+    }
+
+    function updateDifficultyInfo() {
+      const pts = calculatePoints();
+      document.getElementById('difficulty-info').textContent = `Guess now for ${pts} points!`;
+    }
+
+    function handleGuess() {
+      if (gameOver || !currentPokemon) return;
+      const guess = guessInput.value.trim().toLowerCase();
+      if (!guess) return;
+
+      attempts++;
+      suggestionsEl.className = 'suggestions';
+
+      if (guess === currentPokemon.name || guess === currentPokemon.name.replace(/-/g, ' ')) {
+        // Correct!
+        const pts = calculatePoints();
+        score += pts;
+        streak++;
+        if (streak > bestStreak) bestStreak = streak;
+
+        document.getElementById('score').textContent = score;
+        document.getElementById('streak').textContent = streak;
+        document.getElementById('best').textContent = bestStreak;
+
+        messageEl.textContent = `✓ Correct! +${pts} points!`;
+        messageEl.className = 'message correct';
+
+        if (streak >= 3) {
+          const banner = document.getElementById('streak-banner');
+          document.getElementById('streak-count').textContent = streak;
+          banner.className = 'streak-banner show';
+        }
+
+        endRound(true);
+      } else {
+        messageEl.textContent = `✗ "${guess}" is wrong!`;
+        messageEl.className = 'message wrong';
+        guessInput.value = '';
+        guessInput.focus();
+
+        // After 3 wrong guesses, reveal more
+        if (attempts % 2 === 0 && revealLevel < 0.9) {
+          const newLevel = Math.min(revealLevel + 0.10, 0.95);
+          revealPixels(newLevel);
+          messageEl.textContent += ' Revealing more...';
+        }
+      }
+    }
+
+    function handleHint() {
+      if (gameOver) return;
+      const newLevel = Math.min(revealLevel + 0.10, 0.95);
+      revealPixels(newLevel);
+    }
+
+    function handleSkip() {
+      if (gameOver) return;
+      streak = 0;
+      document.getElementById('streak').textContent = 0;
+      document.getElementById('streak-banner').className = 'streak-banner';
+      messageEl.textContent = `It was ${currentPokemon.name.toUpperCase()}!`;
+      messageEl.className = 'message info';
+      endRound(false);
+    }
+
+    function endRound(won) {
+      gameOver = true;
+      revealAll();
+      guessInput.disabled = true;
+
+      const revealDiv = document.getElementById('pokemon-reveal');
+      document.getElementById('reveal-img').src = currentPokemon.sprite;
+      document.getElementById('reveal-name').textContent = currentPokemon.name;
+      revealDiv.className = 'pokemon-reveal show';
+
+      document.getElementById('controls').style.display = 'none';
+      document.getElementById('next-controls').style.display = 'flex';
+
+      if (!won) {
+        document.getElementById('streak-banner').className = 'streak-banner';
+      }
+    }
+
+    // Autocomplete
+    function showSuggestions(query) {
+      if (!query || query.length < 1) {
+        suggestionsEl.className = 'suggestions';
+        return;
+      }
+      const matches = pokemonNames
+        .filter(n => n.startsWith(query) || n.includes(query))
+        .slice(0, 5);
+
+      if (matches.length === 0) {
+        suggestionsEl.className = 'suggestions';
+        return;
+      }
+
+      suggestionsEl.innerHTML = matches.map((name, i) =>
+        `<div class="suggestion-item${i === selectedSuggestion ? ' selected' : ''}" data-name="${name}">${name}</div>`
+      ).join('');
+      suggestionsEl.className = 'suggestions show';
+
+      suggestionsEl.querySelectorAll('.suggestion-item').forEach(item => {
+        item.addEventListener('click', () => {
+          guessInput.value = item.dataset.name;
+          suggestionsEl.className = 'suggestions';
+          handleGuess();
+        });
+      });
+    }
+
+    // Events
+    guessInput.addEventListener('input', () => {
+      selectedSuggestion = -1;
+      showSuggestions(guessInput.value.trim().toLowerCase());
+    });
+
+    guessInput.addEventListener('keydown', (e) => {
+      const items = suggestionsEl.querySelectorAll('.suggestion-item');
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedSuggestion = Math.min(selectedSuggestion + 1, items.length - 1);
+        items.forEach((el, i) => el.classList.toggle('selected', i === selectedSuggestion));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedSuggestion = Math.max(selectedSuggestion - 1, -1);
+        items.forEach((el, i) => el.classList.toggle('selected', i === selectedSuggestion));
+      } else if (e.key === 'Enter') {
+        if (selectedSuggestion >= 0 && items[selectedSuggestion]) {
+          guessInput.value = items[selectedSuggestion].dataset.name;
+          suggestionsEl.className = 'suggestions';
+        }
+        handleGuess();
+      } else if (e.key === 'Escape') {
+        suggestionsEl.className = 'suggestions';
+      }
+    });
+
+    document.getElementById('btn-guess').addEventListener('click', handleGuess);
+    document.getElementById('btn-hint').addEventListener('click', handleHint);
+    document.getElementById('btn-skip').addEventListener('click', handleSkip);
+    document.getElementById('btn-next').addEventListener('click', loadPokemon);
+    document.getElementById('gen-select').addEventListener('change', loadPokemon);
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.input-wrapper')) {
+        suggestionsEl.className = 'suggestions';
+      }
+    });
+
+    // Init
+    loadPokemonNames();
+    loadPokemon();
+  </script>
+
+</body>
+</html>
