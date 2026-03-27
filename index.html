@@ -161,6 +161,48 @@
       margin-top: 2px;
     }
 
+    .btn-mic {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: #3466af;
+      color: #fff;
+      border: none;
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .btn-mic:hover {
+      background: #4a7ec7;
+      transform: scale(1.05);
+    }
+
+    .btn-mic.listening {
+      background: #ff4444;
+      animation: mic-pulse 1s infinite;
+    }
+
+    @keyframes mic-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.5); }
+      50% { box-shadow: 0 0 0 12px rgba(255, 68, 68, 0); }
+    }
+
+    .btn-mic.no-support {
+      display: none;
+    }
+
+    .voice-hint {
+      font-size: 0.4rem;
+      color: #666;
+      text-align: center;
+      margin-top: 4px;
+    }
+
     .controls {
       display: flex;
       flex-direction: column;
@@ -485,9 +527,11 @@
   <div class="controls" id="controls">
     <div class="input-wrapper">
       <div class="input-row">
-        <input type="text" id="guess-input" placeholder="type name..." autocomplete="off" spellcheck="false">
+        <button class="btn-mic" id="btn-mic" title="Say the Pokémon name!">🎤</button>
+        <input type="text" id="guess-input" placeholder="type or speak..." autocomplete="off" spellcheck="false">
         <button class="btn btn-guess" id="btn-guess">GO!</button>
       </div>
+      <div class="voice-hint" id="voice-hint">Tap 🎤 and say the name!</div>
       <div class="suggestions" id="suggestions"></div>
     </div>
     <div class="btn-row">
@@ -699,6 +743,46 @@
       document.getElementById('difficulty-info').textContent = `Guess now for ${pts} points!`;
     }
 
+    // Fuzzy matching for kids - Levenshtein distance
+    function levenshtein(a, b) {
+      const m = a.length, n = b.length;
+      const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+      for (let i = 0; i <= m; i++) dp[i][0] = i;
+      for (let j = 0; j <= n; j++) dp[0][j] = j;
+      for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+          dp[i][j] = a[i-1] === b[j-1]
+            ? dp[i-1][j-1]
+            : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+        }
+      }
+      return dp[m][n];
+    }
+
+    function findClosestPokemon(input) {
+      if (!input || pokemonNames.length === 0) return null;
+      const clean = input.replace(/-/g, ' ').replace(/[^a-z\s]/g, '');
+      let bestName = null;
+      let bestDist = Infinity;
+
+      for (const name of pokemonNames) {
+        const namePlain = name.replace(/-/g, ' ');
+        // Exact match
+        if (clean === namePlain || clean === name) return { name, dist: 0 };
+
+        const dist = levenshtein(clean, namePlain);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestName = name;
+        }
+      }
+
+      // Allow up to 40% of the name length as typo tolerance
+      const maxDist = Math.max(2, Math.ceil(bestName.length * 0.4));
+      if (bestDist <= maxDist) return { name: bestName, dist: bestDist };
+      return null;
+    }
+
     function handleGuess() {
       if (gameOver || !currentPokemon) return;
       const guess = guessInput.value.trim().toLowerCase();
@@ -707,7 +791,13 @@
       attempts++;
       suggestionsEl.className = 'suggestions';
 
-      if (guess === currentPokemon.name || guess === currentPokemon.name.replace(/-/g, ' ')) {
+      // Check exact match first, then fuzzy
+      const target = currentPokemon.name;
+      const isExact = guess === target || guess === target.replace(/-/g, ' ');
+      const fuzzy = !isExact ? findClosestPokemon(guess) : null;
+      const isClose = fuzzy && fuzzy.name === target;
+
+      if (isExact || isClose) {
         // Correct!
         const pts = calculatePoints();
         score += pts;
@@ -847,6 +937,62 @@
         suggestionsEl.className = 'suggestions';
       }
     });
+
+    // Voice recognition
+    const micBtn = document.getElementById('btn-mic');
+    const voiceHint = document.getElementById('voice-hint');
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      micBtn.classList.add('no-support');
+      voiceHint.style.display = 'none';
+    } else {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      micBtn.addEventListener('click', () => {
+        if (gameOver) return;
+        if (micBtn.classList.contains('listening')) {
+          recognition.stop();
+          return;
+        }
+        micBtn.classList.add('listening');
+        voiceHint.textContent = 'Listening...';
+        recognition.start();
+      });
+
+      recognition.onresult = (event) => {
+        const spoken = event.results[0][0].transcript.trim().toLowerCase().replace(/[^a-z\s-]/g, '');
+        voiceHint.textContent = `Heard: "${spoken}"`;
+
+        const result = findClosestPokemon(spoken);
+        if (result) {
+          guessInput.value = result.name;
+          if (result.dist > 0) {
+            voiceHint.textContent = `Heard: "${spoken}" → ${result.name}`;
+          }
+          handleGuess();
+        } else {
+          guessInput.value = spoken;
+          voiceHint.textContent = `Heard: "${spoken}" - try again!`;
+        }
+      };
+
+      recognition.onerror = (event) => {
+        micBtn.classList.remove('listening');
+        if (event.error === 'not-allowed') {
+          voiceHint.textContent = 'Mic access denied. Check browser permissions.';
+        } else {
+          voiceHint.textContent = 'Couldn\'t hear that, try again!';
+        }
+      };
+
+      recognition.onend = () => {
+        micBtn.classList.remove('listening');
+      };
+    }
 
     // Init
     loadPokemonNames();

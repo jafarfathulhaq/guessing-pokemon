@@ -2,3 +2,4 @@
 serve.py
 server.rb
 .DS_Store
+.vercel
